@@ -9,6 +9,7 @@ interface NotificationRow {
 	team_id: string;
 	type: NotificationChannel;
 	notification_name: string;
+	escalation_minutes: number | null;
 	address: string | null;
 	phone: string | null;
 	homeserver_url: string | null;
@@ -18,7 +19,7 @@ interface NotificationRow {
 	updated_at: Date;
 }
 
-const COLUMNS = `id, user_id, team_id, type, notification_name, address, phone,
+const COLUMNS = `id, user_id, team_id, type, notification_name, escalation_minutes, address, phone,
 	homeserver_url, room_id, access_token, created_at, updated_at`;
 
 export class TimescaleNotificationsRepository implements INotificationsRepository {
@@ -26,14 +27,15 @@ export class TimescaleNotificationsRepository implements INotificationsRepositor
 
 	create = async (data: Partial<Notification>): Promise<Notification> => {
 		const result = await this.pool.query<NotificationRow>(
-			`INSERT INTO notifications (user_id, team_id, type, notification_name, address, phone, homeserver_url, room_id, access_token)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			`INSERT INTO notifications (user_id, team_id, type, notification_name, escalation_minutes, address, phone, homeserver_url, room_id, access_token)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			 RETURNING ${COLUMNS}`,
 			[
 				data.userId,
 				data.teamId,
 				data.type,
 				data.notificationName,
+				data.escalationMinutes ?? null,
 				data.address ?? null,
 				data.phone ?? null,
 				data.homeserverUrl ?? null,
@@ -78,6 +80,7 @@ export class TimescaleNotificationsRepository implements INotificationsRepositor
 		const fieldMap: [keyof Notification, string][] = [
 			["type", "type"],
 			["notificationName", "notification_name"],
+			["escalationMinutes", "escalation_minutes"],
 			["address", "address"],
 			["phone", "phone"],
 			["homeserverUrl", "homeserver_url"],
@@ -129,6 +132,7 @@ export class TimescaleNotificationsRepository implements INotificationsRepositor
 		teamId: row.team_id,
 		type: row.type,
 		notificationName: row.notification_name,
+		escalationMinutes: row.escalation_minutes ?? undefined,
 		address: row.address ?? undefined,
 		phone: row.phone ?? undefined,
 		homeserverUrl: row.homeserver_url ?? undefined,

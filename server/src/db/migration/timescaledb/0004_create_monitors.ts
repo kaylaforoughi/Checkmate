@@ -29,6 +29,8 @@ export const createMonitors = async (pool: Pool) => {
 			status_window           BOOLEAN[],
 			status_window_size      INTEGER DEFAULT 5,
 			status_window_threshold INTEGER DEFAULT 60,
+			escalation_minutes      INTEGER DEFAULT 3,
+			escalation_notifications UUID[],
 			uptime_percentage       DOUBLE PRECISION,
 
 			-- Infrastructure alert thresholds

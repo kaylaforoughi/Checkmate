@@ -25,6 +25,8 @@ interface MonitorRow {
 	status_window_size: number;
 	status_window_threshold: number;
 	uptime_percentage: number | null;
+	escalation_minutes: number | null;
+	escalation_notifications: string[] | null;
 	cpu_alert_threshold: number;
 	cpu_alert_counter: number;
 	memory_alert_threshold: number;
@@ -47,6 +49,7 @@ interface MonitorRow {
 const MONITOR_COLUMNS = `id, user_id, team_id, name, description, type, status, url, port,
 	ignore_tls_errors, use_advanced_matching, json_path, expected_value, match_method, secret,
 	interval_ms, is_active, status_window, status_window_size, status_window_threshold, uptime_percentage,
+	escalation_minutes, escalation_notifications,
 	cpu_alert_threshold, cpu_alert_counter, memory_alert_threshold, memory_alert_counter,
 	disk_alert_threshold, disk_alert_counter, temp_alert_threshold, temp_alert_counter, selected_disks,
 	game_id, grpc_service_name, monitor_group, geo_check_enabled, geo_check_locations, geo_check_interval_ms,
@@ -60,10 +63,11 @@ export class TimescaleMonitorsRepository implements IMonitorsRepository {
 			`INSERT INTO monitors (user_id, team_id, name, description, type, status, url, port,
 				ignore_tls_errors, use_advanced_matching, json_path, expected_value, match_method, secret,
 				interval_ms, is_active, status_window, status_window_size, status_window_threshold,
+				escalation_minutes, escalation_notifications,
 				cpu_alert_threshold, cpu_alert_counter, memory_alert_threshold, memory_alert_counter,
 				disk_alert_threshold, disk_alert_counter, temp_alert_threshold, temp_alert_counter, selected_disks,
 				game_id, grpc_service_name, monitor_group, geo_check_enabled, geo_check_locations, geo_check_interval_ms)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36)
 			 RETURNING ${MONITOR_COLUMNS}`,
 			[
 				userId,
@@ -85,6 +89,8 @@ export class TimescaleMonitorsRepository implements IMonitorsRepository {
 				monitor.statusWindow ?? null,
 				monitor.statusWindowSize ?? 5,
 				monitor.statusWindowThreshold ?? 60,
+				monitor.escalationMinutes ?? 3,
+				monitor.escalationNotifications ?? [],
 				monitor.cpuAlertThreshold ?? 0,
 				monitor.cpuAlertCounter ?? 0,
 				monitor.memoryAlertThreshold ?? 0,
@@ -582,6 +588,8 @@ export class TimescaleMonitorsRepository implements IMonitorsRepository {
 			["statusWindow", "status_window"],
 			["statusWindowSize", "status_window_size"],
 			["statusWindowThreshold", "status_window_threshold"],
+			["escalationMinutes", "escalation_minutes"],
+			["escalationNotifications", "escalation_notifications"],
 			["uptimePercentage", "uptime_percentage"],
 			["cpuAlertThreshold", "cpu_alert_threshold"],
 			["cpuAlertCounter", "cpu_alert_counter"],
@@ -744,6 +752,12 @@ export class TimescaleMonitorsRepository implements IMonitorsRepository {
 
 	removeNotificationFromMonitors = async (notificationId: string): Promise<void> => {
 		await this.pool.query(`DELETE FROM monitor_notifications WHERE notification_id = $1`, [notificationId]);
+		await this.pool.query(
+			`UPDATE monitors
+			 SET escalation_notifications = array_remove(COALESCE(escalation_notifications, ARRAY[]::uuid[]), $1::uuid), updated_at = NOW()
+			 WHERE $1::uuid = ANY(COALESCE(escalation_notifications, ARRAY[]::uuid[]))`,
+			[notificationId]
+		);
 	};
 
 	updateNotifications = async (
@@ -1009,6 +1023,8 @@ export class TimescaleMonitorsRepository implements IMonitorsRepository {
 		statusWindow: row.status_window ?? [],
 		statusWindowSize: row.status_window_size,
 		statusWindowThreshold: row.status_window_threshold,
+		escalationMinutes: row.escalation_minutes ?? 3,
+		escalationNotifications: row.escalation_notifications ?? [],
 		type: row.type,
 		ignoreTlsErrors: row.ignore_tls_errors,
 		useAdvancedMatching: row.use_advanced_matching,
